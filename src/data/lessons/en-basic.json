@@ -1,0 +1,88 @@
+{
+  "id": "en-basic",
+  "language": "en",
+  "title": "English Touch Typing Fundamentals",
+  "summary": "Progressive drills that move from home row comfort to full keyboard coverage for English learners.",
+  "tags": ["beginner", "latin"],
+  "stages": [
+    {
+      "id": "home-row",
+      "title": "Home Row Foundations",
+      "description": "Build rhythm on the home row keys with balanced repetitions.",
+      "lines": [
+        "asdf jkl; asdf jkl;",
+        "jjjj kkkk llll ;;;;",
+        "asdfg hjkl; ;lkjh gfdsa",
+        "a s d f ; l k j ; j k l ;",
+        "askl fj;d askl fj;d",
+        "ladj skfj ladj skfj",
+        "fj fj fj fj ;l ;l ;l ;l",
+        "as dj fk la ;s ;d ;f ;g",
+        "ja la ka sa da fa ga ha",
+        "afjd l;sk afjd l;sk",
+        "sdsd ;l;l as;d f;lk",
+        "jkl; fdsa jkl; fdsa"
+      ]
+    },
+    {
+      "id": "nearby-rows",
+      "title": "Reach to Neighboring Rows",
+      "description": "Introduce top and bottom rows while retaining home row anchors.",
+      "lines": [
+        "qaz wsx edc rfv tgb",
+        "yhn ujm ik, ol. p;/",
+        "qwer asdf zxcv",
+        "type grip move jazz",
+        "fleet brave curve knoll",
+        "quick warm jolt flag",
+        "waxed bolts jump frog",
+        "quiz vex body farm",
+        "swift dragon maze pelt",
+        "bring craft zone jump",
+        "brave wave yoke pine",
+        "dive grip flow ramp",
+        "gaze kick lock neck",
+        "mixing brave fox waltz"
+      ]
+    },
+    {
+      "id": "numbers-symbols",
+      "title": "Numbers and Symbols",
+      "description": "Blend number row practice with accessible punctuation.",
+      "lines": [
+        "1 2 3 4 5 6 7 8 9 0",
+        "1234 5678 90-=",
+        "$25.90 saves 15%",
+        "Call me at 555-1432!",
+        "2025/09/30 deadline",
+        "Score: 87 -> 94 -> 102",
+        "Coords (42.36, -71.05)",
+        "Mix #hashtag + @mention",
+        "Budget = $7,560.45",
+        "Use \"quotes\" wisely",
+        "Pi ~= 3.14159; tau ~= 6.28318",
+        "Passwords like r4in&snow"
+      ]
+    },
+    {
+      "id": "full-keyboard",
+      "title": "Full Keyboard Flow",
+      "description": "Combine letters, punctuation, and numbers into natural sentences.",
+      "lines": [
+        "The quick brown fox jumps over 13 lazy dogs.",
+        "Schedule brunch at 10:45 a.m. on Sunday?",
+        "Jazz vocalists warm up with slow modal lines.",
+        "Pack five dozen quality jugs for the expo.",
+        "My inbox has 72 unread emails; triage now!",
+        "Draft version 0.9-alpha ships on 11/01/2025.",
+        "Sphinx of black quartz, judge my vow tonight.",
+        "Blend 3 parts syrup + 2 parts lime juice.",
+        "Wave to Kai when you cross Pier #4 at dusk.",
+        "Ask Leo why the rhythm feels off-beat.",
+        "Clip the pixel art into 64x64 tiles for export.",
+        "Re-check logs: error codes 404, 502, 504.",
+        "Calm your pace, breathe, and steady each keystroke."
+      ]
+    }
+  ]
+}

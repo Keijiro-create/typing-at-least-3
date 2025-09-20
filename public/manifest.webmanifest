@@ -1,0 +1,50 @@
+{
+  "name": "Typing Trainer",
+  "short_name": "Typing",
+  "description": "A bilingual typing trainer with sprints, analytics, and adaptive drills for English and Japanese learners.",
+  "lang": "ja",
+  "scope": "/",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#0ea5e9",
+  "categories": ["education", "productivity"],
+  "id": "typing-trainer",
+  "icons": [
+    {
+      "src": "/icon512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/home.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/screenshots/practice.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start sprint practice",
+      "short_name": "Sprint",
+      "description": "Jump directly into the sprint practice mode.",
+      "url": "/practice"
+    },
+    {
+      "name": "View statistics",
+      "short_name": "Stats",
+      "description": "Review your recent performance and weak keys.",
+      "url": "/stats"
+    }
+  ]
+}
