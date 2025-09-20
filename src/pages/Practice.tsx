@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Keyboard } from '../components/Keyboard'
 import { MetricsBar, createSnapshot } from '../components/MetricsBar'
@@ -7,7 +7,7 @@ import { ResultModal } from '../components/ResultModal'
 import { useAppContext } from '../context/AppContext'
 import { aggregateWeakKeys } from '../lib/analyzer'
 import { calculateMetrics } from '../lib/calc'
-import { createImeController } from '../lib/ime'
+import { createIMEHandlers } from '../lib/ime'
 import { t } from '../lib/i18n'
 import type {
   KeyboardLayout,
@@ -79,44 +79,45 @@ export function PracticePage() {
 
   const expectedText = PRACTICE_STRINGS[setIndex % PRACTICE_STRINGS.length]
   const hiddenInputRef = useRef<HTMLInputElement | null>(null)
+  const textCursorRef = useRef(textCursor)
+  const countersRef = useRef(counters)
   const startTimestampRef = useRef<number | null>(null)
   const rafRef = useRef<number>()
   const samplesRef = useRef<KeyPerformanceSample[]>([])
   const snapshotsRef = useRef<MetricSnapshot[]>([])
   const runningWeakKeysRef = useRef<Record<string, number>>({})
+  const confirmRef = useRef<(text: string) => void>(() => {})
+  const backspaceRef = useRef<() => void>(() => {})
+  const imeHandlersRef = useRef<ReturnType<typeof createIMEHandlers> | null>(null)
+
+  if (!imeHandlersRef.current) {
+    imeHandlersRef.current = createIMEHandlers({
+      onConfirm: (text) => confirmRef.current(text),
+      onBackspace: () => backspaceRef.current(),
+    })
+  }
+  const imeHandlers = imeHandlersRef.current!
 
   const reducedMotion = Boolean(settings.reducedMotion)
+
+  const focusInput = useCallback(() => hiddenInputRef.current?.focus(), [])
+
+  useEffect(() => {
+    hiddenInputRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    textCursorRef.current = textCursor
+  }, [textCursor])
+
+  useEffect(() => {
+    countersRef.current = counters
+  }, [counters])
 
   useEffect(() => {
     const sessionId = `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`
     dispatch({ type: 'session/start', payload: { sessionId, lessonId: 'practice-sprint' } })
   }, [dispatch])
-
-  const imeController = useMemo(() => {
-    return createImeController({
-      onCharacter: (char) => handleCharacter(char),
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expectedText, setIndex])
-
-  useEffect(() => {
-    const input = hiddenInputRef.current
-    if (!input) {
-      return
-    }
-
-    input.addEventListener('compositionstart', imeController.handleCompositionStart as EventListener)
-    input.addEventListener('compositionend', imeController.handleCompositionEnd as EventListener)
-    input.addEventListener('beforeinput', imeController.handleBeforeInput as EventListener)
-    input.addEventListener('input', imeController.handleInput as EventListener)
-
-    return () => {
-      input.removeEventListener('compositionstart', imeController.handleCompositionStart as EventListener)
-      input.removeEventListener('compositionend', imeController.handleCompositionEnd as EventListener)
-      input.removeEventListener('beforeinput', imeController.handleBeforeInput as EventListener)
-      input.removeEventListener('input', imeController.handleInput as EventListener)
-    }
-  }, [imeController])
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -144,8 +145,12 @@ export function PracticePage() {
     snapshotsRef.current = []
     setElapsedMs(0)
     setTextCursor(0)
+    textCursorRef.current = 0
     setCounters(EMPTY_COUNTERS)
-    setNextKeys([expectedText.charAt(0).toLowerCase()])
+    countersRef.current = EMPTY_COUNTERS
+    const firstChar = expectedText.charAt(0)
+    setNextKeys(firstChar ? [firstChar.toLowerCase()] : [])
+    focusInput()
 
     const tick = () => {
       if (startTimestampRef.current === null) {
@@ -213,18 +218,24 @@ export function PracticePage() {
       startTimestampRef.current = performance.now()
     }
 
-    const expectedChar = expectedText.charAt(textCursor)
+    const currentCursor = textCursorRef.current
+    const expectedChar = expectedText.charAt(currentCursor)
     const isCorrect = expectedChar === char
+
+    const currentCounters = countersRef.current
     const newCounters: RunningCounters = {
-      confirmedChars: counters.confirmedChars + 1,
-      keystrokes: counters.keystrokes + 1,
-      errors: counters.errors + (isCorrect ? 0 : 1),
-      combo: isCorrect ? counters.combo + 1 : 0,
-      maxCombo: isCorrect ? Math.max(counters.maxCombo, counters.combo + 1) : counters.maxCombo,
+      confirmedChars: currentCounters.confirmedChars + 1,
+      keystrokes: currentCounters.keystrokes + 1,
+      errors: currentCounters.errors + (isCorrect ? 0 : 1),
+      combo: isCorrect ? currentCounters.combo + 1 : 0,
+      maxCombo: isCorrect ? Math.max(currentCounters.maxCombo, currentCounters.combo + 1) : currentCounters.maxCombo,
     }
 
-    const nextCursor = textCursor + 1
+    countersRef.current = newCounters
     setCounters(newCounters)
+
+    const nextCursor = currentCursor + 1
+    textCursorRef.current = nextCursor
     setTextCursor(nextCursor)
 
     const elapsed = performance.now() - (startTimestampRef.current ?? performance.now())
@@ -260,10 +271,16 @@ export function PracticePage() {
       setHeatVersion((version) => version + 1)
     }
 
-    setNextKeys([
-      expectedText.charAt(nextCursor).toLowerCase(),
-      expectedText.charAt(nextCursor + 1).toLowerCase(),
-    ])
+    const primary = expectedText.charAt(nextCursor)
+    const secondary = expectedText.charAt(nextCursor + 1)
+    const nextKeyHints: string[] = []
+    if (primary) {
+      nextKeyHints.push(primary.toLowerCase())
+    }
+    if (secondary) {
+      nextKeyHints.push(secondary.toLowerCase())
+    }
+    setNextKeys(nextKeyHints)
 
     dispatch({
       type: 'session/record',
@@ -282,6 +299,27 @@ export function PracticePage() {
     }
   }
 
+  function handleConfirm(text: string) {
+    for (const char of Array.from(text)) {
+      handleCharacter(char)
+    }
+  }
+
+  function handleBackspace() {
+    setCounters((prev) => {
+      if (prev.combo === 0) {
+        return prev
+      }
+      const next = { ...prev, combo: 0 }
+      countersRef.current = next
+      return next
+    })
+  }
+
+  confirmRef.current = handleConfirm
+  backspaceRef.current = handleBackspace
+
+
   function finalizeSet() {
     if (startTimestampRef.current === null) {
       return
@@ -295,10 +333,12 @@ export function PracticePage() {
       rafRef.current = undefined
     }
 
+    const currentCounters = countersRef.current
+
     const summaryMetrics = calculateMetrics({
-      confirmedCharCount: counters.confirmedChars,
-      totalKeystrokes: counters.keystrokes,
-      errorCount: counters.errors,
+      confirmedCharCount: currentCounters.confirmedChars,
+      totalKeystrokes: currentCounters.keystrokes,
+      errorCount: currentCounters.errors,
       elapsedMs: Math.max(elapsed, 1),
       expectedElapsedMs: SPRINT_PLAN.setLengthMs,
     })
@@ -308,8 +348,8 @@ export function PracticePage() {
       cpm: summaryMetrics.cpm,
       kpm: summaryMetrics.kpm,
       accuracy: summaryMetrics.accuracy,
-      errors: counters.errors,
-      combo: counters.maxCombo,
+      errors: currentCounters.errors,
+      combo: currentCounters.maxCombo,
       elapsedMs: elapsed,
     })
 
@@ -385,12 +425,15 @@ export function PracticePage() {
     setResults([])
     setOpenResults(false)
     setCounters(EMPTY_COUNTERS)
+    countersRef.current = EMPTY_COUNTERS
     setTextCursor(0)
+    textCursorRef.current = 0
     setSnapshots([])
     samplesRef.current = []
     snapshotsRef.current = []
     runningWeakKeysRef.current = {}
     startTimestampRef.current = performance.now()
+    focusInput()
   }
 
   const progressValue = textCursor
@@ -413,7 +456,7 @@ export function PracticePage() {
             className="rounded-3xl border border-slate-300 bg-white/90 p-6 shadow-inner transition-colors dark:border-slate-700 dark:bg-slate-900/70"
             role="region"
             aria-label="Practice field"
-            onClick={() => hiddenInputRef.current?.focus()}
+            onClick={focusInput}
           >
             <input
               ref={hiddenInputRef}
@@ -429,6 +472,10 @@ export function PracticePage() {
               onDrop={(event) => event.preventDefault()}
               onCopy={(event) => event.preventDefault()}
               onCut={(event) => event.preventDefault()}
+              onBeforeInput={(event) => imeHandlers.onBeforeInput(event.nativeEvent as InputEvent)}
+              onCompositionStart={() => imeHandlers.onCompositionStart()}
+              onCompositionEnd={() => imeHandlers.onCompositionEnd()}
+              onKeyDown={(event) => imeHandlers.onKeyDown(event.nativeEvent as KeyboardEvent)}
             />
             <p className="min-h-[160px] whitespace-pre-wrap break-words leading-relaxed">
               {renderChars.map((segment, index) => (

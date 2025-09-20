@@ -1,42 +1,62 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createImeController } from '../ime'
+import { createIMEHandlers } from '../ime'
 
-describe('createImeController', () => {
-  it('emits characters on insertText events', () => {
-    const handler = vi.fn()
-    const controller = createImeController({ onCharacter: handler })
+describe('createIMEHandlers', () => {
+  it('triggers onConfirm with the full confirmed string on insertText', () => {
+    const onConfirm = vi.fn()
+    const handlers = createIMEHandlers({ onConfirm })
 
-    const event = new InputEvent('input', { data: 'a', inputType: 'insertText' })
-    controller.handleInput?.(event as never)
+    const event = {
+      inputType: 'insertText',
+      data: 'かな',
+      preventDefault: vi.fn(),
+    } as unknown as InputEvent
 
-    expect(handler).toHaveBeenCalledTimes(1)
-    expect(handler).toHaveBeenCalledWith('a', expect.objectContaining({ isIme: false }))
+    handlers.onBeforeInput(event)
+
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+    expect(onConfirm).toHaveBeenCalledWith('かな')
   })
 
-  it('ignores insertCompositionText events and tracks composition state', () => {
-    const handler = vi.fn()
-    const controller = createImeController({ onCharacter: handler })
+  it('ignores insertCompositionText and handles deleteContentBackward', () => {
+    const onConfirm = vi.fn()
+    const onBackspace = vi.fn()
+    const handlers = createIMEHandlers({ onConfirm, onBackspace })
 
-    const beforeEvent = new InputEvent('beforeinput', { data: 'あ', inputType: 'insertCompositionText' })
-    controller.handleBeforeInput?.(beforeEvent as never)
-    expect(handler).not.toHaveBeenCalled()
+    const compEvent = {
+      inputType: 'insertCompositionText',
+      data: 'あ',
+      preventDefault: vi.fn(),
+    } as unknown as InputEvent
 
-    controller.handleCompositionStart?.(new CompositionEvent('compositionstart'))
+    handlers.onBeforeInput(compEvent)
+    expect(onConfirm).not.toHaveBeenCalled()
+    expect(compEvent.preventDefault).not.toHaveBeenCalled()
 
-    const inputEvent = new InputEvent('input', { data: 'あ', inputType: 'insertText' })
-    controller.handleInput?.(inputEvent as never)
+    const deleteEvent = {
+      inputType: 'deleteContentBackward',
+      data: null,
+      preventDefault: vi.fn(),
+    } as unknown as InputEvent
 
-    expect(handler).toHaveBeenCalledTimes(1)
-    expect(handler.mock.calls[0][1].isIme).toBe(true)
+    handlers.onBeforeInput(deleteEvent)
+    expect(deleteEvent.preventDefault).toHaveBeenCalled()
+    expect(onBackspace).toHaveBeenCalledTimes(1)
+  })
 
-    controller.handleCompositionEnd?.(new CompositionEvent('compositionend'))
-    controller.reset()
+  it('handles physical backspace when not composing', () => {
+    const onBackspace = vi.fn()
+    const handlers = createIMEHandlers({ onConfirm: () => {}, onBackspace })
 
-    const followUpEvent = new InputEvent('input', { data: 'b', inputType: 'insertText' })
-    controller.handleInput?.(followUpEvent as never)
+    const keyEvent = {
+      key: 'Backspace',
+      preventDefault: vi.fn(),
+    } as unknown as KeyboardEvent
 
-    expect(handler).toHaveBeenCalledTimes(2)
-    expect(handler.mock.calls[1][1].isIme).toBe(false)
+    handlers.onKeyDown(keyEvent)
+    expect(keyEvent.preventDefault).toHaveBeenCalled()
+    expect(onBackspace).toHaveBeenCalled()
   })
 })

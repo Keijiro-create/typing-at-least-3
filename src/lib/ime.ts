@@ -1,140 +1,64 @@
-import type { InputHTMLAttributes } from 'react'
+/* IME確定テキストだけを安全に取り出す軽量フック */
+export type IMEHandlers = {
+  onBeforeInput: (e: InputEvent) => void;
+  onCompositionStart: () => void;
+  onCompositionEnd: () => void;
+  onKeyDown: (e: KeyboardEvent) => void;
+};
 
-export type ConfirmedCharacterHandler = (
-  char: string,
-  context: { event: InputEvent; isIme: boolean },
-) => void
+type Options = {
+  onConfirm: (text: string) => void;            // 確定時に呼ばれる（複数文字可）
+  onBackspace?: () => void;                     // deleteContentBackward のとき
+};
 
-export type ImeControllerOptions = {
-  onCharacter: ConfirmedCharacterHandler
-  onCompositionStart?: () => void
-  onCompositionEnd?: () => void
-}
+export function createIMEHandlers(opts: Options): IMEHandlers {
+  let composing = false;
 
-type ImeState = {
-  composing: boolean
-}
+  const onCompositionStart = () => {
+    composing = true;
+  };
 
-const DEFAULT_STATE: ImeState = {
-  composing: false,
-}
+  const onCompositionEnd = () => {
+    // IME確定の直前/直後に beforeinput(insertText) が来るので、
+    // ここでは composing フラグだけ折る。
+    composing = false;
+  };
 
-const INSERT_COMPOSITION_TEXT = 'insertCompositionText'
-const INSERT_TEXT = 'insertText'
-
-/**
- * Usage:
- * const ime = createImeController({ onCharacter: handleChar });
- * <input
- *   onCompositionStart={ime.handleCompositionStart}
- *   onCompositionEnd={ime.handleCompositionEnd}
- *   onBeforeInput={ime.handleBeforeInput}
- *   onInput={ime.handleInput}
- * />
- */
-export function createImeController(options: ImeControllerOptions) {
-  const state: ImeState = { ...DEFAULT_STATE }
-
-  const emitCharacters = (event: InputEvent) => {
-    const data = event.data ?? ''
-    if (!data) {
-      return
+  const onBeforeInput = (e: InputEvent) => {
+    // テキスト削除
+    if (e.inputType === "deleteContentBackward") {
+      e.preventDefault();
+      opts.onBackspace?.();
+      return;
     }
 
-    const isIme = state.composing || event.isComposing
-
-    for (const char of Array.from(data)) {
-      options.onCharacter(char, { event, isIme })
-    }
-  }
-
-  const handleCompositionStart: InputHTMLAttributes<HTMLInputElement>['onCompositionStart'] = () => {
-    state.composing = true
-    options.onCompositionStart?.()
-  }
-
-  const handleCompositionEnd: InputHTMLAttributes<HTMLInputElement>['onCompositionEnd'] = () => {
-    state.composing = false
-    options.onCompositionEnd?.()
-  }
-
-  const handleBeforeInput: InputHTMLAttributes<HTMLInputElement>['onBeforeInput'] = (syntheticEvent) => {
-    const event = extractInputEvent(syntheticEvent)
-    if (!event) {
-      return
+    // IME中の未確定テキストはカウントしない
+    if (e.inputType === "insertCompositionText") {
+      // 未確定 → 無視
+      return;
     }
 
-    if (event.inputType === INSERT_COMPOSITION_TEXT) {
-      return
+    // 確定文字列（insertText）のみ
+    if (e.inputType === "insertText") {
+      // IME環境では e.data が「まとめて確定」文字列になることがある
+      const data = e.data ?? "";
+      if (data.length > 0) {
+        e.preventDefault(); // 入力欄に溜まらないよう阻止
+        opts.onConfirm(data); // 文字列全体を渡す
+      }
+      return;
     }
-  }
 
-  const handleInput: InputHTMLAttributes<HTMLInputElement>['onInput'] = (syntheticEvent) => {
-    const event = extractInputEvent(syntheticEvent)
-    if (!event || event.inputType !== INSERT_TEXT) {
-      return
+    // それ以外はデフォルト無視
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    // 物理キーのBackspaceを保険で捕捉（IME外のケース）
+    if (e.key === "Backspace" && !composing) {
+      e.preventDefault();
+      opts.onBackspace?.();
     }
+  };
 
-    emitCharacters(event)
-  }
-
-  const reset = () => {
-    state.composing = false
-  }
-
-  return {
-    handleCompositionStart,
-    handleCompositionEnd,
-    handleBeforeInput,
-    handleInput,
-    reset,
-  }
-}
-
-export function createImeDomBinder(options: ImeControllerOptions) {
-  const controller = createImeController(options)
-
-  const compositionStart = (event: CompositionEvent) => {
-    controller.handleCompositionStart?.(event as never)
-  }
-  const compositionEnd = (event: CompositionEvent) => {
-    controller.handleCompositionEnd?.(event as never)
-  }
-  const beforeInput = (event: InputEvent) => {
-    controller.handleBeforeInput?.(event as never)
-  }
-  const input = (event: InputEvent) => {
-    controller.handleInput?.(event as never)
-  }
-
-  return {
-    attach(target: HTMLElement) {
-      target.addEventListener('compositionstart', compositionStart)
-      target.addEventListener('compositionend', compositionEnd)
-      target.addEventListener('beforeinput', beforeInput as EventListener)
-      target.addEventListener('input', input as EventListener)
-    },
-    detach(target: HTMLElement) {
-      target.removeEventListener('compositionstart', compositionStart)
-      target.removeEventListener('compositionend', compositionEnd)
-      target.removeEventListener('beforeinput', beforeInput as EventListener)
-      target.removeEventListener('input', input as EventListener)
-    },
-    reset: controller.reset,
-  }
-}
-
-function extractInputEvent(event: unknown): InputEvent | null {
-  if (event instanceof InputEvent) {
-    return event
-  }
-
-  if (typeof event === 'object' && event !== null) {
-    const candidate = event as { nativeEvent?: InputEvent }
-    if (candidate.nativeEvent instanceof InputEvent) {
-      return candidate.nativeEvent
-    }
-  }
-
-  return null
+  return { onBeforeInput, onCompositionStart, onCompositionEnd, onKeyDown };
 }
